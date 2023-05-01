@@ -211,7 +211,6 @@ Public NotInheritable Class SimpleClient
 
                             Case DataType.NoneType
                                 ' 何もしない
-                                Me.mLogger?.LoggingInformation("111")
 
                             Case Else
                                 Me.mLogger?.LoggingError($"not target type:{pair.res.ValueType}")
