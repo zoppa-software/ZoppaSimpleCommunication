@@ -5,7 +5,7 @@ Option Explicit On
 Public NotInheritable Class Communication
 
     ''' <summary>データタイプを設定、取得します。</summary>
-    Public Property ValueType As DataType = DataType.IntegerType
+    Public Property ValueType As DataType = DataType.NoneType
 
     ''' <summary>整数値を設定、取得します。</summary>
     Public Property ValueInteger As Integer? = Nothing

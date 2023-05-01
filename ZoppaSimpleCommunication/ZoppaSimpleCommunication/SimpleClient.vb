@@ -1,18 +1,26 @@
 ﻿Option Strict On
 Option Explicit On
+
 Imports System.Net
 Imports System.Net.Sockets
 Imports System.Text
+Imports System.Threading
 
 ''' <summary>シンプルなTPC/IPサーバークライアント機能です。</summary>
 Public NotInheritable Class SimpleClient
     Implements IDisposable
 
+    ' TCPリスナー
     Private ReadOnly mListener As TcpListener
 
+    ' ログ出力機能
     Private ReadOnly mLogger As ILogger
 
-    Private ReadOnly mRequests As New Queue(Of (req As LocalComm, res As Communication))
+    ' シグナル
+    Private ReadOnly mSignal As CountdownEvent
+
+    ' 送信リクエストキュー
+    Private ReadOnly mRequests As New Queue(Of (req As LocalIOValue, res As Communication))
 
     ' 実行中フラグ
     Private mRunning As Boolean
@@ -29,6 +37,7 @@ Public NotInheritable Class SimpleClient
     Private Sub New(listener As TcpListener, logger As ILogger)
         Me.mLogger = logger
         Me.mListener = listener
+        Me.mSignal = New CountdownEvent(1)
         Me.mRunning = True
         Me.mDisposed = False
     End Sub
@@ -131,6 +140,8 @@ Public NotInheritable Class SimpleClient
         End Try
     End Function
 
+    ''' <summary>サーバーとの接続を行います。</summary>
+    ''' <param name="timeoutLimit">接続待機時間。</param>
     Private Sub ListenMethod(timeoutLimit As TimeSpan)
         Dim strtTm As Date = Date.Now
         Do While Date.Now.Subtract(strtTm) < timeoutLimit
@@ -153,6 +164,16 @@ Public NotInheritable Class SimpleClient
                 ' 送受信待機
                 Using aesLapper = New AesLapper(Encoding.UTF8.GetBytes(aesKey), Encoding.UTF8.GetBytes(aseIv))
                     Do While True
+                        ' リクエストがなければ待機
+                        Dim noReq = True
+                        SyncLock Me
+                            noReq = (Me.mRequests.Count > 0)
+                        End SyncLock
+                        If noReq Then
+                            Me.mSignal.Wait()
+                            Me.mSignal.Reset()
+                        End If
+
                         ' 実行フラグがオフになればループ終了
                         SyncLock Me
                             If Not Me.mRunning Then
@@ -162,7 +183,7 @@ Public NotInheritable Class SimpleClient
                         End SyncLock
 
                         ' リクエストを取得
-                        Dim pair As (req As LocalComm, res As Communication) = Nothing
+                        Dim pair As (req As LocalIOValue, res As Communication) = Nothing
                         Dim dtty = DataType.NoneType
                         SyncLock Me
                             If Me.mRequests.Count > 0 Then
@@ -178,7 +199,7 @@ Public NotInheritable Class SimpleClient
                                 Me.GetResponse(stream, aesLapper, pair.res)
 
                             Case DataType.IntegerType
-                                CommunicationWrite(stream, If(pair.req.ValueInteger, 0))
+                                CommunicationWrite(stream, aesLapper, If(pair.req.ValueInteger, 0))
                                 Me.GetResponse(stream, aesLapper, pair.res)
 
                             Case DataType.BytesType
@@ -186,7 +207,7 @@ Public NotInheritable Class SimpleClient
                                 Me.GetResponse(stream, aesLapper, pair.res)
 
                             Case DataType.NoneType
-                                Threading.Thread.Sleep(10)
+                                ' 何もしない
 
                             Case Else
                                 Me.mLogger?.LoggingError($"not target type:{pair.res.ValueType}")
@@ -201,12 +222,16 @@ Public NotInheritable Class SimpleClient
 EXIT_LOOP:
     End Sub
 
-    Public Function Write(input As String) As Communication
+    ''' <summary>文字列を送信します。</summary>
+    ''' <param name="input">文字列。</param>
+    ''' <returns>受信結果。</returns>
+    Public Function Send(input As String) As Communication
         Try
-            Dim res As New Communication() With {.ValueType = DataType.NoneType}
+            Dim res As New Communication()
             SyncLock Me
+                If Not Me.mSignal.IsSet Then Me.mSignal.Signal()
                 Me.mRequests.Enqueue(
-                    (New LocalComm() With {.ValueType = DataType.StringType, .ValueString = input}, res)
+                    (New LocalIOValue() With {.ValueType = DataType.StringType, .ValueString = input}, res)
                 )
             End SyncLock
 
@@ -218,17 +243,23 @@ EXIT_LOOP:
             Loop
 
             Return res
-        Catch ex As Exception
 
+        Catch ex As Exception
+            Me.mLogger?.LoggingError($"send error:{ex.Message}")
+            Throw
         End Try
     End Function
 
-    Public Function Write(input As Integer) As Communication
+    ''' <summary>整数値を送信します。</summary>
+    ''' <param name="input">整数値。</param>
+    ''' <returns>受信結果。</returns>
+    Public Function Send(input As Integer) As Communication
         Try
-            Dim res As New Communication() With {.ValueType = DataType.NoneType}
+            Dim res As New Communication()
             SyncLock Me
+                If Not Me.mSignal.IsSet Then Me.mSignal.Signal()
                 Me.mRequests.Enqueue(
-                    (New LocalComm() With {.ValueType = DataType.IntegerType, .ValueInteger = input}, res)
+                    (New LocalIOValue() With {.ValueType = DataType.IntegerType, .ValueInteger = input}, res)
                 )
             End SyncLock
 
@@ -240,17 +271,23 @@ EXIT_LOOP:
             Loop
 
             Return res
-        Catch ex As Exception
 
+        Catch ex As Exception
+            Me.mLogger?.LoggingError($"send error:{ex.Message}")
+            Throw
         End Try
     End Function
 
-    Public Function Write(input As Byte()) As Communication
+    ''' <summary>バイト配列を送信します。</summary>
+    ''' <param name="input">バイト配列。</param>
+    ''' <returns>受信結果。</returns>
+    Public Function Send(input As Byte()) As Communication
         Try
-            Dim res As New Communication() With {.ValueType = DataType.NoneType}
+            Dim res As New Communication()
             SyncLock Me
+                If Not Me.mSignal.IsSet Then Me.mSignal.Signal()
                 Me.mRequests.Enqueue(
-                    (New LocalComm() With {.ValueType = DataType.BytesType, .ValueBytes = input}, res)
+                    (New LocalIOValue() With {.ValueType = DataType.BytesType, .ValueBytes = input}, res)
                 )
             End SyncLock
 
@@ -262,11 +299,17 @@ EXIT_LOOP:
             Loop
 
             Return res
-        Catch ex As Exception
 
+        Catch ex As Exception
+            Me.mLogger?.LoggingError($"send error:{ex.Message}")
+            Throw
         End Try
     End Function
 
+    ''' <summary>ネットワークストリームから受信データを取得します。</summary>
+    ''' <param name="stream">ネットワークストリーム。</param>
+    ''' <param name="aesLapper">暗号化機能。</param>
+    ''' <param name="res">受信データ（戻り値）</param>
     Private Sub GetResponse(stream As NetworkStream, aesLapper As AesLapper, res As Communication)
         Dim dataLen = ReadInteger(stream)
         If dataLen >= 0 Then
@@ -275,28 +318,39 @@ EXIT_LOOP:
 
             Select Case no
                 Case DataType.IntegerType
-                    data = ReadBytes(stream, dataLen - 1)
+                    ' 整数値受信
+                    data = aesLapper.Decrypt(ReadBytes(stream, dataLen - 1))
                     Dim inum = BitConverter.ToInt32(data, 0)
+                    Me.mLogger?.LoggingDebug($"get response:{inum} type:Integer")
                     SyncLock Me
                         res.ValueType = DataType.IntegerType
                         res.ValueInteger = inum
                     End SyncLock
 
                 Case DataType.StringType
+                    ' 文字列受信
                     data = aesLapper.Decrypt(ReadBytes(stream, dataLen - 1))
                     Dim message = Encoding.UTF8.GetString(data)
+                    Me.mLogger?.LoggingDebug($"get response:{If(message.Length < 10, message, message.Substring(0, 10) & "...")} type:String")
                     SyncLock Me
                         res.ValueType = DataType.StringType
                         res.ValueString = message
                     End SyncLock
 
                 Case DataType.BytesType
-
+                    ' バイト配列受信
+                    data = aesLapper.Decrypt(ReadBytes(stream, dataLen - 1))
+                    Me.mLogger?.LoggingDebug($"get response:{SimpleServer.GeBytesString(data)} type:Byte()")
+                    SyncLock Me
+                        res.ValueType = DataType.BytesType
+                        res.ValueBytes = data
+                    End SyncLock
             End Select
         End If
     End Sub
 
-    Public NotInheritable Class LocalComm
+    ''' <summary>内部交換用I/O値を表現します。</summary>
+    Public NotInheritable Class LocalIOValue
 
         ''' <summary>データタイプを設定、取得します。</summary>
         Public Property ValueType As DataType = DataType.NoneType

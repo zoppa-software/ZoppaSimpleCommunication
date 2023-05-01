@@ -1,5 +1,6 @@
 ﻿Option Strict On
 Option Explicit On
+
 Imports System.Net.Sockets
 Imports System.Text
 
@@ -27,21 +28,17 @@ Public Module NetMethod
         Return res.ToString()
     End Function
 
-    ''' <summary>
-    ''' 
-    ''' </summary>
-    ''' <returns></returns>
+    ''' <summary>RSA暗号、公開キー／複合キーを取得します。</summary>
+    ''' <returns>公開キー／複合キー。</returns>
     Friend Function RsaCreateKeys() As (publicKey As String, privateKey As String)
         Dim rsa As New System.Security.Cryptography.RSACryptoServiceProvider()
         Return (rsa.ToXmlString(False), rsa.ToXmlString(True))
     End Function
 
-    ''' <summary>
-    ''' 
-    ''' </summary>
-    ''' <param name="str"></param>
-    ''' <param name="publicKey"></param>
-    ''' <returns></returns>
+    ''' <summary>RSAで暗号化します。</summary>
+    ''' <param name="str">暗号化する文字列。</param>
+    ''' <param name="publicKey">公開キー。</param>
+    ''' <returns>暗号化結果。</returns>
     Friend Function RasEncrypt(ByVal str As String, ByVal publicKey As String) As Byte()
         Using rsa As New System.Security.Cryptography.RSACryptoServiceProvider()
             '公開鍵を指定
@@ -52,12 +49,10 @@ Public Module NetMethod
         End Using
     End Function
 
-    ''' <summary>
-    ''' 
-    ''' </summary>
-    ''' <param name="data"></param>
-    ''' <param name="privateKey"></param>
-    ''' <returns></returns>
+    ''' <summary>RSAで復号化化します。</summary>
+    ''' <param name="data">復号化する文字列。</param>
+    ''' <param name="privateKey">秘密キー。</param>
+    ''' <returns>復号化結果。</returns>
     Friend Function RsaDecrypt(ByVal data As Byte(), ByVal privateKey As String) As String
         Using rsa As New System.Security.Cryptography.RSACryptoServiceProvider()
             '秘密鍵を指定
@@ -69,6 +64,10 @@ Public Module NetMethod
         End Using
     End Function
 
+    ''' <summary>ネットワークストリームからバイト配列を取得します。</summary>
+    ''' <param name="targetStream">対象ストリーム。</param>
+    ''' <param name="readCount">読み込むバイト数。</param>
+    ''' <returns>読み込み結果。</returns>
     Friend Function ReadBytes(targetStream As IO.Stream, readCount As Integer) As Byte()
         Dim buf = New Byte(READ_BUF_SIZE) {}
         Dim res As New List(Of Byte)(READ_BUF_SIZE)
@@ -161,27 +160,21 @@ Public Module NetMethod
         End If
     End Function
 
-    ''' <summary>
-    ''' 
-    ''' </summary>
-    ''' <param name="stream"></param>
-    ''' <param name="aesLapper"></param>
-    ''' <param name="input"></param>
+    ''' <summary>ネットワークストリームに暗号化した文字列を送信します。</summary>
+    ''' <param name="stream">ネットワークストリーム。</param>
+    ''' <param name="aesLapper">暗号化機能。</param>
+    ''' <param name="input">文字列。</param>
     Friend Sub CommunicationWrite(stream As NetworkStream, aesLapper As AesLapper, input As String)
         Dim data = aesLapper.Encrypt(Encoding.UTF8.GetBytes(input))
         WriteInteger(stream, data.Length + 1)
 
         stream.WriteByte(DataType.StringType)
-
         stream.Write(data, 0, data.Length)
         stream.Flush()
     End Sub
 
-    ''' <summary>
-    ''' 
-    ''' </summary>
-    ''' <param name="stream"></param>
-    ''' <param name="input"></param>
+    ''' <summary>ネットワークストリームに終了指示を書き込みます。</summary>
+    ''' <param name="stream">ネットワークストリーム。</param>
     Friend Sub CommunicationExitWrite(stream As NetworkStream)
         WriteInteger(stream, 1)
 
@@ -189,30 +182,25 @@ Public Module NetMethod
         stream.Flush()
     End Sub
 
-    ''' <summary>
-    ''' 
-    ''' </summary>
-    ''' <param name="stream"></param>
-    ''' <param name="input"></param>
-    Friend Sub CommunicationWrite(stream As NetworkStream, input As Integer)
-        WriteInteger(stream, 4 + 1)
+    ''' <summary>ネットワークストリームに暗号化した整数値を送信します。</summary>
+    ''' <param name="stream">ネットワークストリーム。</param>
+    ''' <param name="aesLapper">暗号化機能。</param>
+    ''' <param name="input">整数値。</param>
+    Friend Sub CommunicationWrite(stream As NetworkStream, aesLapper As AesLapper, input As Integer)
+        Dim data = aesLapper.Encrypt(BitConverter.GetBytes(input))
+        WriteInteger(stream, data.Length + 1)
 
         stream.WriteByte(DataType.IntegerType)
-
-        WriteInteger(stream, input)
+        stream.Write(data, 0, data.Length)
         stream.Flush()
     End Sub
 
-    ''' <summary>
-    ''' 
-    ''' </summary>
-    ''' <param name="stream"></param>
-    ''' <param name="aesLapper"></param>
-    ''' <param name=""></param>
-    ''' <param name="input"></param>
+    ''' <summary>ネットワークストリームに暗号化したバイト配列を送信します。</summary>
+    ''' <param name="stream">ネットワークストリーム。</param>
+    ''' <param name="aesLapper">暗号化機能。</param>
+    ''' <param name="input">バイト配列。</param>
     Friend Sub CommunicationWrite(stream As NetworkStream, aesLapper As AesLapper, input As Byte())
         Dim data = aesLapper.Encrypt(input)
-
         WriteInteger(stream, data.Length + 1)
 
         stream.WriteByte(DataType.BytesType)

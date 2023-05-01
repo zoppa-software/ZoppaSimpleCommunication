@@ -1,5 +1,6 @@
 ﻿Option Strict On
 Option Explicit On
+
 Imports System.Runtime.CompilerServices
 
 ''' <summary>ログ出力機能を提供します。</summary>

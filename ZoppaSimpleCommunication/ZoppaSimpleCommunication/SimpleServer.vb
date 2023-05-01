@@ -230,7 +230,7 @@ Public NotInheritable Class SimpleServer
 
                                     Case DataType.IntegerType
                                         ' 整数値を受信
-                                        data = ReadBytes(stream, dataLen - 1)
+                                        data = aesLapper.Decrypt(ReadBytes(stream, dataLen - 1))
                                         Dim inum = BitConverter.ToInt32(data, 0)
                                         Me.mLogger?.LoggingDebug($"receive from {useAddress}:{usePort} length:{dataLen} integer:{inum}")
 
@@ -242,7 +242,7 @@ Public NotInheritable Class SimpleServer
                                         ' 文字列を受信
                                         data = aesLapper.Decrypt(ReadBytes(stream, dataLen - 1))
                                         Dim message = Encoding.UTF8.GetString(data)
-                                        Me.mLogger?.LoggingDebug($"receive from {useAddress}:{usePort} length:{dataLen} string:{If(message.Length < 25, message, message.Substring(0, 25) & "...")}")
+                                        Me.mLogger?.LoggingDebug($"receive from {useAddress}:{usePort} length:{dataLen} string:{If(message.Length < 10, message, message.Substring(0, 10) & "...")}")
 
                                         request.ValueType = DataType.StringType
                                         request.ValueString = message
@@ -265,11 +265,11 @@ Public NotInheritable Class SimpleServer
                                     Case DataType.IntegerType
                                         Dim inum = If(response.ValueInteger, 0)
                                         Me.mLogger?.LoggingDebug($"send to {useAddress}:{usePort} integer:{inum}")
-                                        CommunicationWrite(stream, inum)
+                                        CommunicationWrite(stream, aesLapper, inum)
 
                                     Case DataType.StringType
                                         Dim message = If(response.ValueString, "")
-                                        Me.mLogger?.LoggingDebug($"send to {useAddress}:{usePort} string:{If(message.Length < 50, message, message.Substring(0, 50))}")
+                                        Me.mLogger?.LoggingDebug($"send to {useAddress}:{usePort} string:{If(message.Length < 10, message, message.Substring(0, 10) & "...")}")
                                         CommunicationWrite(stream, aesLapper, message)
                                 End Select
                             Else
@@ -294,7 +294,7 @@ Public NotInheritable Class SimpleServer
     ''' <summary>バイト配列をログに出力する文字列を取得します。</summary>
     ''' <param name="datas">バイト配列。</param>
     ''' <returns>ログ文字列。</returns>
-    Private Shared Function GeBytesString(datas As Byte()) As String
+    Friend Shared Function GeBytesString(datas As Byte()) As String
         Dim res As New StringBuilder()
 
         Dim maxLen = Math.Min(datas.Length, 25)

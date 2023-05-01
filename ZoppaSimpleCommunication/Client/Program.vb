@@ -5,18 +5,18 @@ Module Program
     Sub Main(args As String())
         Task.Factory.StartNew(
             Sub()
-                For i As Integer = 1 To 1000
+                For i As Integer = 1 To 10
                     Using client = SimpleClient.ClientRun("127.0.0.1", 8081, logger:=New Logger())
-                        Dim a0 = client.Write(New Byte() {0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
+                        Dim a0 = client.Send(New Byte() {0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
                         Console.WriteLine(a0.ValueString)
 
-                        Dim a1 = client.Write(100)
+                        Dim a1 = client.Send(0)
                         Console.WriteLine(a1.ValueString)
 
-                        Dim a2 = client.Write("文字列送信テスト")
+                        Dim a2 = client.Send("文字列送信テスト")
                         Console.WriteLine(a2.ValueString)
 
-                        Dim a3 = client.Write("地獄楽視聴中")
+                        Dim a3 = client.Send("地獄楽視聴中")
                         Console.WriteLine(a3.ValueString)
                     End Using
 
