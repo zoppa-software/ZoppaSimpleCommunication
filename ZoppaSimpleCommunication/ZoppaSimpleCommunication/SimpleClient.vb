@@ -57,10 +57,13 @@ Public NotInheritable Class SimpleClient
                 End SyncLock
                 Threading.Thread.Sleep(10)
             Loop
-            SyncLock Me
-                Me.mRunning = False
-            End SyncLock
+
             Try
+                Me.mSignal.Signal()
+                SyncLock Me
+                    Me.mRunning = False
+                End SyncLock
+
                 ' タスクを停止
                 Me.mLogger?.LoggingInformation("Stop main task")
                 Me.mTask.Wait()
@@ -169,7 +172,7 @@ Public NotInheritable Class SimpleClient
                         SyncLock Me
                             noReq = (Me.mRequests.Count > 0)
                         End SyncLock
-                        If noReq Then
+                        If Not noReq Then
                             Me.mSignal.Wait()
                             Me.mSignal.Reset()
                         End If
@@ -208,6 +211,7 @@ Public NotInheritable Class SimpleClient
 
                             Case DataType.NoneType
                                 ' 何もしない
+                                Me.mLogger?.LoggingInformation("111")
 
                             Case Else
                                 Me.mLogger?.LoggingError($"not target type:{pair.res.ValueType}")

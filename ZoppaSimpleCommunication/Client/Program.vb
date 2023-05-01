@@ -5,7 +5,7 @@ Module Program
     Sub Main(args As String())
         Task.Factory.StartNew(
             Sub()
-                For i As Integer = 1 To 10
+                For i As Integer = 1 To 1000
                     Using client = SimpleClient.ClientRun("127.0.0.1", 8081, logger:=New Logger())
                         Dim a0 = client.Send(New Byte() {0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
                         Console.WriteLine(a0.ValueString)
@@ -20,7 +20,7 @@ Module Program
                         Console.WriteLine(a3.ValueString)
                     End Using
 
-                    Threading.Thread.Sleep(500)
+                    Threading.Thread.Sleep(100)
                 Next
             End Sub,
             TaskCreationOptions.LongRunning
